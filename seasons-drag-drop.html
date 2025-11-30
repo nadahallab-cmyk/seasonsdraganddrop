@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seasons Drag & Drop</title>
+
+<style>
+    /* --- Layout & Background --- */
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px 0 40px;
+    }
+
+    h1 {
+        margin-bottom: 10px;
+        font-size: 24px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .subtitle {
+        margin-bottom: 20px;
+        color: #555;
+        font-size: 14px;
+    }
+
+    .board {
+        position: relative;
+        width: 850px;
+        height: 600px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .background {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* --- Drop Zones --- */
+    .drop-zone {
+        position: absolute;
+        width: 180px;
+        height: 180px;
+        border: 3px dashed transparent;
+        border-radius: 16px;
+        box-sizing: border-box;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: auto;
+    }
+
+    /* Position your zones to match the background design */
+    .drop-zone[data-season="spring"] { top: 60px; left: 90px; }
+    .drop-zone[data-season="summer"] { top: 60px; right: 90px; }
+    .drop-zone[data-season="autumn"] { bottom: 60px; left: 90px; }
+    .drop-zone[data-season="winter"] { bottom: 60px; right: 90px; }
+
+    .drop-zone.highlight {
+        border-color: #2196F3;
+        box-shadow: 0 0 12px rgba(33,150,243,0.7);
+        transform: scale(1.03);
+    }
+
+    /* Correct state + animation */
+    .drop-zone.correct {
+        border-color: #4CAF50;
+        animation: zoneGlow 0.8s ease-out;
+    }
+
+    .drop-zone.correct::after {
+        content: "✓";
+        position: absolute;
+        top: 6px;
+        right: 10px;
+        font-size: 24px;
+        color: #4CAF50;
+        text-shadow: 0 0 6px rgba(0,0,0,0.3);
+    }
+
+    @keyframes zoneGlow {
+        0%   { box-shadow: 0 0 0 0 rgba(76,175,80,0.9); }
+        100% { box-shadow: 0 0 25px 15px rgba(76,175,80,0); }
+    }
+
+    .drop-zone img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 12px;
+    }
+
+    /* --- Draggable Items --- */
+    .draggables-wrapper {
+        margin-top: 24px;
+        width: 850px;
+        display: flex;
+        justify-content: center;
+    }
+
+    .draggables {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .drag-item {
+        width: 150px;
+        text-align: center;
+        cursor: grab;
+        padding: 10px;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.3s;
+    }
+
+    .drag-item img {
+        width: 100%;
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .drag-item span {
+        font-weight: bold;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+    }
+
+    .drag-item:active {
+        transform: scale(0.97);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .drag-item.disabled {
+        opacity: 0.5;
+        cursor: default;
+        box-shadow: none;
+    }
+
+    /* --- Success Toast (top) --- */
+    #success-toast {
+        position: fixed;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-20px);
+        padding: 10px 22px;
+        background: rgba(76,175,80,0.98);
+        color: #fff;
+        border-radius: 999px;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.35s ease;
+        z-index: 1000;
+    }
+
+    #success-toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    /* --- Completion Overlay --- */
+    #completion-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s ease;
+        z-index: 900;
+    }
+
+    #completion-overlay.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .completion-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 26px 34px;
+        text-align: center;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+        animation: overlayPop 0.45s ease-out;
+        max-width: 320px;
+    }
+
+    .completion-card h2 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 22px;
+    }
+
+    .completion-card p {
+        margin: 4px 0 16px;
+        color: #555;
+        font-size: 14px;
+    }
+
+    .completion-card button {
+        padding: 8px 18px;
+        border-radius: 999px;
+        border: none;
+        background: #4CAF50;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .completion-card button:hover {
+        background: #43a047;
+    }
+
+    @keyframes overlayPop {
+        0%   { transform: scale(0.8); opacity: 0; }
+        70%  { transform: scale(1.05); opacity: 1; }
+        100% { transform: scale(1); }
+    }
+
+    /* --- Small responsive tweak --- */
+    @media (max-width: 900px) {
+        .board, .draggables-wrapper {
+            width: 95vw;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<h1>Match the Seasons</h1>
+<div class="subtitle">Drag each season to its correct position on the picture.</div>
+
+<div class="board">
+    <!-- Background image -->
+    <img src="BACKGROUND@4x.svg" alt="Background" class="background">
+
+    <!-- Drop Zones (targets) -->
+    <div class="drop-zone" data-season="spring"></div>
+    <div class="drop-zone" data-season="summer"></div>
+    <div class="drop-zone" data-season="autumn"></div>
+    <div class="drop-zone" data-season="winter"></div>
+</div>
+
+<div class="draggables-wrapper">
+    <div class="draggables">
+        <!-- Draggable cards -->
+        <div class="drag-item" draggable="true" data-season="spring" id="drag-spring">
+            <img src="SPRING@4x.svg" alt="Spring">
+            <span>SPRING</span>
+        </div>
+
+        <div class="drag-item" draggable="true" data-season="summer" id="drag-summer">
+            <img src="SUMMER@4x.svg" alt="Summer">
+            <span>SUMMER</span>
+        </div>
+
+        <div class="drag-item" draggable="true" data-season="autumn" id="drag-autumn">
+            <img src="AUTUMN@4x.svg" alt="Autumn">
+            <span>AUTUMN</span>
+        </div>
+
+        <div class="drag-item" draggable="true" data-season="winter" id="drag-winter">
+            <img src="WINTER@4x.svg" alt="Winter">
+            <span>WINTER</span>
+        </div>
+    </div>
+</div>
+
+<!-- Success toast -->
+<div id="success-toast">Nice match! ✔</div>
+
+<!-- Completion overlay -->
+<div id="completion-overlay">
+    <div class="completion-card">
+        <h2>All Seasons Matched!</h2>
+        <p>Great job—everything is in the right place.</p>
+        <button id="close-overlay">Close</button>
+    </div>
+</div>
+
+<script>
+    const dragItems = document.querySelectorAll(".drag-item");
+    const dropZones = document.querySelectorAll(".drop-zone");
+    const toast = document.getElementById("success-toast");
+    const overlay = document.getElementById("completion-overlay");
+    const closeOverlayBtn = document.getElementById("close-overlay");
+
+    // Map seasons to their image assets used inside the drop zones
+    const seasonImageMap = {
+        spring: "SPRING@4x.svg",
+        summer: "SUMMER@4x.svg",
+        autumn: "AUTUMN@4x.svg",
+        winter: "WINTER@4x.svg"
+    };
+
+    let completedCount = 0;
+    const totalSeasons = Object.keys(seasonImageMap).length;
+
+    dragItems.forEach(item => {
+        item.addEventListener("dragstart", handleDragStart);
+    });
+
+    dropZones.forEach(zone => {
+        zone.addEventListener("dragover", handleDragOver);
+        zone.addEventListener("drop", handleDrop);
+        zone.addEventListener("dragleave", handleDragLeave);
+    });
+
+    function handleDragStart(e) {
+        const dragItem = e.target.closest(".drag-item");
+        if (!dragItem || dragItem.classList.contains("disabled")) return;
+
+        e.dataTransfer.setData("season", dragItem.dataset.season);
+        e.dataTransfer.setData("dragId", dragItem.id);
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        this.classList.add("highlight");
+    }
+
+    function handleDragLeave() {
+        this.classList.remove("highlight");
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        this.classList.remove("highlight");
+
+        const draggedSeason = e.dataTransfer.getData("season");
+        const draggedId = e.dataTransfer.getData("dragId");
+        const targetSeason = this.dataset.season;
+
+        if (!draggedSeason || !draggedId) return;
+
+        const dragItem = document.getElementById(draggedId);
+        if (!dragItem || dragItem.classList.contains("disabled")) return;
+
+        if (draggedSeason === targetSeason && !this.classList.contains("correct")) {
+            // Lock the item
+            dragItem.classList.add("disabled");
+            dragItem.setAttribute("draggable", "false");
+
+            // Snap the correct image into the zone
+            this.innerHTML = `<img src="${seasonImageMap[draggedSeason]}" alt="${draggedSeason}">`;
+            this.classList.add("correct");
+
+            completedCount++;
+            showToast("Correct match!");
+
+            if (completedCount >= totalSeasons) {
+                setTimeout(() => {
+                    overlay.classList.add("show");
+                }, 500);
+            }
+        } else {
+            showToast("Not quite. Try again.");
+        }
+    }
+
+    function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("show");
+
+        clearTimeout(showToast._timeoutId);
+        showToast._timeoutId = setTimeout(() => {
+            toast.classList.remove("show");
+        }, 1200);
+    }
+
+    closeOverlayBtn.addEventListener("click", () => {
+        overlay.classList.remove("show");
+    });
+</script>
+
+</body>
+</html>
